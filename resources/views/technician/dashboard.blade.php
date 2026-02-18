@@ -19,14 +19,19 @@
 </head>
 <body class="bg-gray-50 min-h-screen p-4 md:p-6 font-sans">
     <div class="max-w-4xl mx-auto">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex flex-wrap items-center gap-2 justify-between mb-6">
             <h1 class="text-2xl font-bold text-gray-800">التذاكر المكلف بها</h1>
-            <form action="{{ route('logout') }}" method="POST" class="inline">
-                @csrf
-                <button type="submit" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                    تسجيل الخروج
-                </button>
-            </form>
+            <div class="flex gap-2">
+                <form action="{{ route('logout') }}" method="POST" class="inline">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        تسجيل الخروج
+                    </button>
+                </form>
+                <a href="{{ route('logout') }}" class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition" title="استخدم هذا إذا زر تسجيل الخروج لا يعمل">
+                    خروج مباشر
+                </a>
+            </div>
         </div>
 
         @if (session('success'))

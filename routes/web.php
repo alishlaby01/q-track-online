@@ -12,7 +12,7 @@ Route::get('/', function () {
 Route::get('/track/{uuid}', TrackingPage::class)->name('tracking.show');
 Route::post('/track/evaluation', [PublicTrackingController::class, 'storeEvaluation'])->name('tracking.evaluation');
 
-Route::post('/logout', function () {
+Route::match(['get', 'post'], '/logout', function () {
     auth()->logout();
     request()->session()->invalidate();
     request()->session()->regenerateToken();

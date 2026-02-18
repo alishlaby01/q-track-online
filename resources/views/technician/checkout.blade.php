@@ -15,13 +15,34 @@
 </head>
 <body class="bg-gray-50 min-h-screen p-4 md:p-6 font-sans">
     <div class="max-w-xl mx-auto">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex flex-wrap items-center gap-2 justify-between mb-4">
             <a href="{{ route('technician.index') }}" class="text-amber-600 hover:underline">← العودة للوحة التحكم</a>
-            <form action="{{ route('logout') }}" method="POST" class="inline">
-                @csrf
-                <button type="submit" class="text-sm text-gray-600 hover:text-gray-800">تسجيل الخروج</button>
-            </form>
+            <div class="flex gap-2">
+                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="inline">
+                    @csrf
+                    <button type="submit" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        تسجيل الخروج
+                    </button>
+                </form>
+                <a href="{{ route('logout') }}" class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition" title="استخدم هذا إذا زر تسجيل الخروج لا يعمل">
+                    خروج مباشر
+                </a>
+            </div>
         </div>
+
+        @if ($errors->any())
+            <div class="mb-4 p-4 bg-red-100 text-red-800 rounded-lg">
+                <p class="font-medium mb-2">يرجى تصحيح الأخطاء التالية:</p>
+                <ul class="list-disc list-inside space-y-1 text-sm">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        @if (session('error'))
+            <div class="mb-4 p-4 bg-red-100 text-red-800 rounded-lg">{{ session('error') }}</div>
+        @endif
 
         <h1 class="text-2xl font-bold text-gray-800 mb-6">إنهاء المهمة (Check-out)</h1>
         <p class="text-gray-600 mb-6">التذكرة: {{ $visit->ticket->ticket_number }}</p>
@@ -94,27 +115,52 @@
 
         document.getElementById('checkout-form').addEventListener('submit', function(e) {
             e.preventDefault();
+            const form = this;
             const btn = document.getElementById('submit-btn');
+            const latInput = document.getElementById('geo-lat');
+            const lngInput = document.getElementById('geo-lng');
+
+            function doSubmit() {
+                btn.disabled = true;
+                btn.textContent = 'جاري الإرسال...';
+                form.submit();
+            }
+
+            if (latInput.value && lngInput.value) {
+                doSubmit();
+                return;
+            }
+
             btn.disabled = true;
             btn.textContent = 'جاري جلب الموقع...';
 
             if (!navigator.geolocation) {
-                alert('المتصفح لا يدعم تحديد الموقع.');
-                btn.disabled = false;
-                btn.textContent = 'إنهاء الزيارة';
+                if (confirm('المتصفح لا يدعم تحديد الموقع. هل تريد المتابعة بدون موقع؟ (سيتم حفظ 0,0)')) {
+                    latInput.value = '0';
+                    lngInput.value = '0';
+                    doSubmit();
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'إنهاء الزيارة';
+                }
                 return;
             }
 
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
-                    document.getElementById('geo-lat').value = pos.coords.latitude;
-                    document.getElementById('geo-lng').value = pos.coords.longitude;
-                    this.submit();
+                    latInput.value = pos.coords.latitude;
+                    lngInput.value = pos.coords.longitude;
+                    doSubmit();
                 },
                 (err) => {
-                    alert('تعذر الحصول على الموقع: ' + (err.message || 'يرجى السماح بالوصول للموقع وإعادة المحاولة.'));
-                    btn.disabled = false;
-                    btn.textContent = 'إنهاء الزيارة';
+                    if (confirm('تعذر الحصول على الموقع. هل تريد المتابعة بدون موقع؟ (سيتم حفظ 0,0)')) {
+                        latInput.value = '0';
+                        lngInput.value = '0';
+                        doSubmit();
+                    } else {
+                        btn.disabled = false;
+                        btn.textContent = 'إنهاء الزيارة';
+                    }
                 },
                 { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
