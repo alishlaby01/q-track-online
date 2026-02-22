@@ -50,6 +50,11 @@ class UserResource extends Resource
                         ->required()
                         ->maxLength(255)
                         ->unique(ignoreRecord: true),
+                    Forms\Components\TextInput::make('phone')
+                        ->label('رقم التلفون')
+                        ->tel()
+                        ->maxLength(20)
+                        ->helperText('يظهر للعميل في صفحة التتبع عند «تم التعيين»'),
                     Forms\Components\TextInput::make('password')
                         ->label('كلمة المرور')
                         ->password()
@@ -71,7 +76,8 @@ class UserResource extends Resource
                             default => 'فني',
                         })
                         ->multiple(false)
-                        ->preload(),
+                        ->preload()
+                        ->dehydrated(false),
                 ]),
             ]);
     }
@@ -88,6 +94,9 @@ class UserResource extends Resource
                     ->label('البريد الإلكتروني')
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('phone')
+                    ->label('التلفون')
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('roles.name')
                     ->label('الدور')
                     ->formatStateUsing(fn ($record) => $record->getRoleNames()->map(fn ($role) => match ($role) {

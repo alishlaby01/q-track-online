@@ -11,7 +11,7 @@
 @else
     <div class="flex flex-wrap gap-4">
         @foreach($attachments as $att)
-            @php $url = \Illuminate\Support\Facades\Storage::disk('public')->url($att->file_path); @endphp
+            @php $url = '/storage/' . ltrim($att->file_path, '/'); @endphp
             <a href="{{ $url }}" target="_blank" class="block">
                 <img src="{{ $url }}" alt="صورة الزيارة" class="w-32 h-32 object-cover rounded-lg border border-gray-200 hover:opacity-90 transition" loading="lazy">
             </a>

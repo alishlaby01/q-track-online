@@ -26,10 +26,18 @@ class TrackingPage extends Component
         return Ticket::where('uuid', $this->uuid)->with([
             'visits' => fn ($q) => $q->orderBy('check_in_at', 'desc'),
             'visits.technician',
+            'assignedTechnician',
             'evaluation',
         ])->first();
     }
 
+    /**
+     * حالة التذكرة المعروضة للعميل:
+     * - assigned:   تم تعيين فني (اسمه + تلفونه) ولم يضغط «في الطريق» بعد.
+     * - in_transit: الفني ضغط «في الطريق» ولم يسجّل «وصلت وبدء العمل» بعد.
+     * - working:   الفني سجّل الوصول (GPS) ولم ينهِ الزيارة بعد.
+     * - completed: تم إنهاء الزيارة.
+     */
     public function getDisplayStatus(): string
     {
         $ticket = $this->getTicket();
@@ -40,10 +48,10 @@ class TrackingPage extends Component
         if ($visit && $visit->check_out_at) {
             return 'completed';
         }
-        if ($visit && !$visit->check_out_at) {
+        if ($visit && $visit->arrived_at) {
             return 'working';
         }
-        if ($ticket->assignedTechnician) {
+        if ($visit) {
             return 'in_transit';
         }
         return 'assigned';

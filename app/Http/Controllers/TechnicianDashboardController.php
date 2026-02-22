@@ -9,9 +9,16 @@ use App\Models\Visit;
 use App\Services\VisitService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
+/**
+ * لوحة تحكم الفني (Technician Dashboard)
+ *
+ * يعرض التذاكر المكلف بها الفني، تسجيل الدخول للمهمة (Check-in)، وإنهاء المهمة (Check-out).
+ * كل المنطق الخاص بالزيارات موجود في VisitService؛ الكونترولر يستقبل الطلبات ويوجّه النتائج.
+ */
 class TechnicianDashboardController extends Controller
 {
     public function __construct(
@@ -19,52 +26,82 @@ class TechnicianDashboardController extends Controller
     ) {}
 
     /**
-     * عرض التذاكر المفتوحة المكلف بها الفني
+     * عرض التذاكر المفتوحة المكلف بها الفني فقط (حالة open أو in_progress)
+     * مع منع الكاش حتى لا يرى الفني نسخة قديمة بعد Check-in
      */
-    public function index(): View
+    public function index(): Response
     {
         $tickets = Ticket::where('assigned_to', Auth::id())
             ->whereIn('status', ['open', 'in_progress'])
             ->with([
                 'tasks',
+                // نحمّل الزيارات غير المنتهية لهذا الفني فقط (عشان نعرف نعرض "إنهاء المهمة" أو "تسجيل دخول")
                 'visits' => fn ($q) => $q->where('user_id', Auth::id())->whereNull('check_out_at')->where('status', 'incomplete'),
             ])
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return view('technician.dashboard', compact('tickets'));
+        return response()
+            ->view('technician.dashboard', compact('tickets'))
+            ->withHeaders([
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma'        => 'no-cache',
+                'Expires'       => '0',
+            ]);
     }
 
     /**
-     * تسجيل دخول (Check-in) - يستقبل lat, lng من JavaScript
+     * «في الطريق»: الفني أعلن أنه متجه للموقع (بدون GPS). العميل يرى "في الطريق".
      */
-    public function checkIn(Request $request): RedirectResponse
+    public function onTheWay(Request $request): RedirectResponse
     {
-        $request->validate([
-            'ticket_id' => 'required|exists:tickets,id',
-            'lat'       => 'required|numeric|between:-90,90',
-            'lng'       => 'required|numeric|between:-180,180',
-        ]);
+        $request->validate(['ticket_id' => 'required|exists:tickets,id']);
 
         try {
-            $this->visitService->recordCheckIn(
-                (int) $request->ticket_id,
-                (float) $request->lat,
-                (float) $request->lng
-            );
-
+            $this->visitService->recordOnTheWay((int) $request->ticket_id);
             return redirect()
-                ->route('technician.index')
-                ->with('success', 'تم تسجيل بداية الزيارة بنجاح.');
-        } catch (GeofencingException|VisitException $e) {
+                ->to(route('technician.index', [], false) . '?_=' . time())
+                ->with('success', 'تم تسجيل «في الطريق» بنجاح.')
+                ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma' => 'no-cache']);
+        } catch (VisitException $e) {
             return redirect()
-                ->route('technician.index')
-                ->with('error', $e->getMessage());
+                ->to(route('technician.index', [], false) . '?_=' . time())
+                ->with('error', $e->getMessage())
+                ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma' => 'no-cache']);
         }
     }
 
     /**
-     * إنهاء المهمة (Check-out) - يستقبل visit_id وبيانات إضافية
+     * «وصلت وبدء العمل»: تسجيل الوصول الفعلي مع التحقق من GPS. العميل يرى "جاري العمل".
+     */
+    public function arrive(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'visit_id' => 'required|exists:visits,id',
+            'lat'      => 'required|numeric|between:-90,90',
+            'lng'      => 'required|numeric|between:-180,180',
+        ]);
+
+        try {
+            $this->visitService->recordArrived(
+                (int) $request->visit_id,
+                (float) $request->lat,
+                (float) $request->lng
+            );
+            return redirect()
+                ->to(route('technician.index', [], false) . '?_=' . time())
+                ->with('success', 'تم تسجيل الوصول وبدء العمل.')
+                ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma' => 'no-cache']);
+        } catch (GeofencingException|VisitException $e) {
+            return redirect()
+                ->to(route('technician.index', [], false) . '?_=' . time())
+                ->with('error', $e->getMessage())
+                ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma' => 'no-cache']);
+        }
+    }
+
+    /**
+     * إنهاء المهمة (Check-out): يستقبل visit_id، إحداثيات GPS، حالة الزيارة، نتائج المهام، وملف صور (مطلوب صورة واحدة على الأقل)
      */
     public function checkOut(Request $request): RedirectResponse
     {
@@ -116,26 +153,30 @@ class TechnicianDashboardController extends Controller
             );
 
             return redirect()
-                ->route('technician.index')
-                ->with('success', 'تم إنهاء الزيارة بنجاح.');
-        } catch (VisitException $e) {
+                ->to(route('technician.index', [], false))
+                ->with('success', 'تم إنهاء الزيارة بنجاح.')
+                ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma' => 'no-cache']);
+        } catch (GeofencingException|VisitException $e) {
             return redirect()
-                ->route('technician.index')
-                ->with('error', $e->getMessage());
+                ->to(route('technician.index', [], false))
+                ->with('error', $e->getMessage())
+                ->withHeaders(['Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0', 'Pragma' => 'no-cache']);
         }
     }
 
     /**
-     * نموذج إنهاء الزيارة
+     * عرض صفحة إنهاء الزيارة. مسموح فقط بعد تسجيل «وصلت وبدء العمل» (arrived_at غير فارغ).
      */
     public function showCheckOutForm(Visit $visit): View|RedirectResponse
     {
         if ($visit->user_id !== Auth::id()) {
-            return redirect()->route('technician.index')->with('error', 'هذه الزيارة لا تخصك.');
+            return redirect()->to(route('technician.index', [], false))->with('error', 'هذه الزيارة لا تخصك.');
         }
-
         if ($visit->check_out_at) {
-            return redirect()->route('technician.index')->with('error', 'تم إنهاء هذه الزيارة مسبقاً.');
+            return redirect()->to(route('technician.index', [], false))->with('error', 'تم إنهاء هذه الزيارة مسبقاً.');
+        }
+        if (!$visit->arrived_at) {
+            return redirect()->to(route('technician.index', [], false))->with('error', 'يجب تسجيل «وصلت وبدء العمل» أولاً قبل إنهاء المهمة.');
         }
 
         $visit->load('ticket.tasks');

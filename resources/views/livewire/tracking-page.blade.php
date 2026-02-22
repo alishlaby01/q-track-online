@@ -1,7 +1,18 @@
+{{--
+    صفحة تتبع التذكرة للعميل (بدون تسجيل دخول).
+    الرابط: /track/{uuid} — يُرسل للعميل من لوحة الأدمن.
+
+    مراحل ما يظهر عند العميل:
+    1) تم التعيين   — بعد تكليف الفني: اسم الفني + رقم تلفونه (بدون «في الطريق» بعد).
+    2) في الطريق    — عندما يضغط الفني «في الطريق» من لوحته.
+    3) جاري العمل   — عندما يسجّل الفني «وصلت وبدء العمل» (بعد التحقق من GPS).
+    4) تم الانتهاء   — بعد «إنهاء المهمة» ثم نموذج التقييم إن لم يُرسل.
+    wire:poll.5s = تحديث تلقائي كل 5 ثوانٍ.
+--}}
 <div wire:poll.5s class="max-w-2xl mx-auto px-4 py-8" wire:key="tracking-{{ $uuid }}">
     @php
         $ticket = $this->getTicket();
-        $status = $this->getDisplayStatus();
+        $status = $this->getDisplayStatus();   // assigned | in_transit | working | completed
         $visit = $ticket?->visits->first();
         $visitEnded = $visit && $visit->check_out_at;
         $hasEvaluation = $ticket?->evaluation !== null;
@@ -20,7 +31,7 @@
         </button>
     </div>
 
-    {{-- Flash Messages --}}
+    {{-- رسائل النجاح/الخطأ إن وُجدت --}}
     @if (session('success'))
         <div class="mb-6 p-4 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-xl">{{ session('success') }}</div>
     @endif
@@ -28,7 +39,8 @@
         <div class="mb-6 p-4 bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 rounded-xl">{{ session('error') }}</div>
     @endif
 
-    {{-- Card: Client + Ticket + Technician --}}
+    @php $technician = $visit?->technician ?? $ticket->assignedTechnician; @endphp
+    {{-- بطاقة: اسم العميل، رقم التذكرة، والفني (اسم + تلفون) من أول مرحلة «تم التعيين» --}}
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
         <div class="grid gap-6 sm:grid-cols-2">
             <div>
@@ -41,18 +53,23 @@
             </div>
         </div>
 
-        @if($visit && $visit->technician)
+        @if($technician)
             <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-600 flex items-center gap-4">
-                <img src="https://ui-avatars.com/api/?name={{ urlencode($visit->technician->name) }}&size=64&background=6366f1&color=fff" alt="" class="w-16 h-16 rounded-full ring-2 ring-indigo-500/50">
+                <img src="https://ui-avatars.com/api/?name={{ urlencode($technician->name) }}&size=64&background=6366f1&color=fff" alt="" class="w-16 h-16 rounded-full ring-2 ring-indigo-500/50">
                 <div>
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">الفني المكلف</p>
-                    <p class="text-xl font-semibold text-gray-900 dark:text-white">{{ $visit->technician->name }}</p>
+                    <p class="text-xl font-semibold text-gray-900 dark:text-white">{{ $technician->name }}</p>
+                    @if($technician->phone)
+                        <p class="text-base text-gray-600 dark:text-gray-300 mt-1">
+                            <a href="tel:{{ $technician->phone }}" class="hover:underline">{{ $technician->phone }}</a>
+                        </p>
+                    @endif
                 </div>
             </div>
         @endif
     </div>
 
-    {{-- Status Stepper --}}
+    {{-- مراحل الزيارة (ستيبّر): تم التعيين → في الطريق → جاري العمل → تم الانتهاء --}}
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
         <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-6">مراحل الزيارة</h2>
         <div class="flex items-center justify-between">
@@ -86,7 +103,7 @@
         </div>
     </div>
 
-    {{-- Rating Form --}}
+    {{-- نموذج التقييم: يظهر بعد انتهاء الزيارة وقبل إرسال التقييم --}}
     @if($visitEnded && !$hasEvaluation)
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6">
             <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">قيّم الخدمة</h2>

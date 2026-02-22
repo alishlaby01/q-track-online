@@ -1,9 +1,13 @@
+{{-- صفحة إنهاء الزيارة (Check-out): نموذج حالة المهام، حالة الزيارة، ملاحظات، صور مطلوبة، وإحداثيات GPS تُملأ عبر JavaScript قبل الإرسال --}}
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="rtl">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>إنهاء الزيارة - {{ config('app.name') }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
@@ -16,15 +20,15 @@
 <body class="bg-gray-50 min-h-screen p-4 md:p-6 font-sans">
     <div class="max-w-xl mx-auto">
         <div class="flex flex-wrap items-center gap-2 justify-between mb-4">
-            <a href="{{ route('technician.index') }}" class="text-amber-600 hover:underline">← العودة للوحة التحكم</a>
+            <a href="{{ route('technician.index', [], false) }}" class="text-amber-600 hover:underline">← العودة للوحة التحكم</a>
             <div class="flex gap-2">
-                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="inline">
+                <form id="logout-form" action="{{ route('logout', [], false) }}" method="POST" class="inline">
                     @csrf
                     <button type="submit" class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                         تسجيل الخروج
                     </button>
                 </form>
-                <a href="{{ route('logout') }}" class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition" title="استخدم هذا إذا زر تسجيل الخروج لا يعمل">
+                <a href="{{ route('logout', [], false) }}" class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition" title="استخدم هذا إذا زر تسجيل الخروج لا يعمل">
                     خروج مباشر
                 </a>
             </div>
@@ -47,9 +51,10 @@
         <h1 class="text-2xl font-bold text-gray-800 mb-6">إنهاء المهمة (Check-out)</h1>
         <p class="text-gray-600 mb-6">التذكرة: {{ $visit->ticket->ticket_number }}</p>
 
-        <form id="checkout-form" action="{{ route('technician.check-out') }}" method="POST" enctype="multipart/form-data" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <form id="checkout-form" action="{{ route('technician.check-out', [], false) }}" method="POST" enctype="multipart/form-data" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
             @csrf
             <input type="hidden" name="visit_id" value="{{ $visit->id }}">
+            {{-- lat/lng تُملآن من JavaScript (Geolocation API) قبل إرسال النموذج --}}
             <input type="hidden" name="lat" id="geo-lat">
             <input type="hidden" name="lng" id="geo-lng">
 
@@ -113,6 +118,7 @@
             document.querySelector('[name="failure_reason"]').required = this.value === 'incomplete';
         });
 
+        // عند الضغط على "إنهاء الزيارة": إن لم تكن lat/lng مملوءتين نطلب الموقع من المتصفح ثم نرسل النموذج
         document.getElementById('checkout-form').addEventListener('submit', function(e) {
             e.preventDefault();
             const form = this;
